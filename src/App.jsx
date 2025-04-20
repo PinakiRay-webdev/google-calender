@@ -1,7 +1,10 @@
-import React from "react";
+import React, { useState , useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { signInWithPopup, GoogleAuthProvider, signOut } from "firebase/auth";
+import { auth } from "./firebase/config";
+
 const App = () => {
   const {
     register,
@@ -9,6 +12,72 @@ const App = () => {
     formState: { errors, isSubmitting },
   } = useForm();
 
+  const [authBtnText, setAuthBtnText] = useState("");
+  const [authBtnBg, setAuthBtnBg] = useState("")
+
+  //fetching the user credentials from local storage
+  const userData = JSON.parse(localStorage.getItem('userCredentials'))
+
+  //google sign in functionality
+
+  const provider = new GoogleAuthProvider();
+
+  const googleSignin = async () => {
+    toast.loading('signing with google..' , {theme : 'dark'})
+    await new Promise((resolve) => {
+      setTimeout(() => {
+        resolve();
+      }, 1500);
+    }).then(() => {
+      signInWithPopup(auth, provider)
+        .then((result) => {
+          toast.dismiss();
+          const credentials = GoogleAuthProvider.credentialFromResult(result);
+          const token = credentials.accessToken;
+          const user = result.user;
+
+          localStorage.setItem(
+            "userCredentials",
+            JSON.stringify({
+              userName: user.displayName,
+              userEmail: user.email,
+              credential_token: token,
+            })
+          );
+          toast.success('signed in successfully' , {theme: 'dark'})
+        })
+        .catch((errors) => {
+          toast.dismiss();
+          toast.error(errors.message);
+        });
+    });
+  };
+
+  // google logout functionality 
+  const googleSignOut = async () =>{
+    toast.loading('signing you out...' , {theme : 'dark'})
+    await new Promise((resolve) =>{
+      setTimeout(() => {
+        resolve()
+      }, 1500);
+    }).then(() =>{
+      signOut(auth).then(() =>{
+        toast.dismiss();
+        localStorage.clear();
+        toast.success('signed out' , {theme : 'dark'})
+      }).catch((error) =>{
+        toast.dismiss()
+        toast.error(error.message);
+      })
+    })
+  }
+
+  // handle user signup and signin 
+  const handleUserAuth = () =>{
+    userData ? googleSignOut() : googleSignin()
+  }
+
+  //form submit functionality
   const handleEvent = async (data) => {
     toast.loading("submitting", { theme: "dark" });
     await new Promise((resolve) => {
@@ -22,10 +91,22 @@ const App = () => {
     });
   };
 
+  useEffect(() =>{
+    if(userData){
+      setAuthBtnText("logout")
+      setAuthBtnBg("bg-red-600")
+    }else{
+      setAuthBtnText("login")
+      setAuthBtnBg("bg-blue-600")
+    }
+  },[userData])
+
   return (
     <div className="bg-zinc-800 h-screen">
-      <header className="flex justify-end px-5 py-3" >
-        <button className="bg-blue-600 px-5 py-1 rounded-lg text-white cursor-pointer" >Login</button>
+      <header className="flex justify-end px-5 py-3">
+        <button onClick={handleUserAuth} className={`${authBtnBg} px-5 py-1 rounded-lg text-white cursor-pointer`}>
+          {authBtnText}
+        </button>
       </header>
       <section className="text-white">
         <form
@@ -57,7 +138,14 @@ const App = () => {
               className="text-zinc-300 w-full outline-none"
             />
           </fieldset>
-          <button disabled={isSubmitting} className={`col-span-2 py-2 rounded mt-2 ${isSubmitting ? "cursor-not-allowed bg-green-900" : "cursor-pointer bg-green-600"}`}>
+          <button
+            disabled={isSubmitting}
+            className={`col-span-2 py-2 rounded mt-2 ${
+              isSubmitting
+                ? "cursor-not-allowed bg-green-900"
+                : "cursor-pointer bg-green-600"
+            }`}
+          >
             {isSubmitting ? "submitting..." : "submit"}
           </button>
         </form>
