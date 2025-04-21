@@ -14,9 +14,11 @@ const App = () => {
 
   const [authBtnText, setAuthBtnText] = useState("");
   const [authBtnBg, setAuthBtnBg] = useState("")
+  //fetching the user credentials from the local storage
+  const [userData, setUserData] = useState(
+    JSON.parse(localStorage.getItem('userCredentials'))
+  )
 
-  //fetching the user credentials from local storage
-  const userData = JSON.parse(localStorage.getItem('userCredentials'))
 
   //google sign in functionality
 
@@ -36,14 +38,19 @@ const App = () => {
           const token = credentials.accessToken;
           const user = result.user;
 
+          const userCredentials = {
+            userName: user.displayName,
+            userEmail: user.email,
+            credential_token: token,
+          }
+
           localStorage.setItem(
             "userCredentials",
             JSON.stringify({
-              userName: user.displayName,
-              userEmail: user.email,
-              credential_token: token,
+              userCredentials
             })
           );
+          setUserData(userCredentials)
           toast.success('signed in successfully' , {theme: 'dark'})
         })
         .catch((errors) => {
@@ -62,6 +69,7 @@ const App = () => {
       }, 1500);
     }).then(() =>{
       signOut(auth).then(() =>{
+        setUserData(null);
         toast.dismiss();
         localStorage.clear();
         toast.success('signed out' , {theme : 'dark'})
