@@ -1,6 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
 import {getAuth} from 'firebase/auth'
+
 const firebaseConfig = {
   apiKey: "AIzaSyBgODoGbCEheXDdiWc2R3YZmq0S9YNXBKA",
   authDomain: "event-calender-3b58a.firebaseapp.com",
@@ -13,4 +14,3 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export {firebaseConfig}

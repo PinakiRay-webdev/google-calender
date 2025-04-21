@@ -14,92 +14,76 @@ const App = () => {
 
   const [authBtnText, setAuthBtnText] = useState("");
   const [authBtnBg, setAuthBtnBg] = useState("");
-  //fetching the user credentials from the local storage
   const [userData, setUserData] = useState(
     JSON.parse(localStorage.getItem("userCredentials"))
   );
+  const [googleAccessToken, setGoogleAccessToken] = useState(null);
 
-  //google sign in functionality
   const provider = new GoogleAuthProvider();
 
   const googleSignin = async () => {
     toast.loading("signing with google..", { theme: "dark" });
-    await new Promise((resolve) => {
-      setTimeout(() => {
-        resolve();
-      }, 1500);
-    }).then(() => {
-      signInWithPopup(auth, provider)
-        .then((result) => {
-          toast.dismiss();
-          const credentials = GoogleAuthProvider.credentialFromResult(result);
-          const token = credentials?.accessToken;
-          const user = result.user;
+    try {
+      const result = await signInWithPopup(auth, provider);
+      toast.dismiss();
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      const token = credential?.accessToken;
+      const user = result.user;
 
-          const userCredentials = {
-            userName: user.displayName,
-            userEmail: user.email,
-            credential_token: token,
-          };
-
-          localStorage.setItem(
-            "userCredentials",
-            JSON.stringify({
-              userCredentials,
-            })
-          );
-          setUserData(userCredentials);
-          toast.success("signed in successfully", { theme: "dark" });
-        })
-        .catch((error) => {
-          toast.dismiss();
-          toast.error(error.message);
-        });
-    });
+      if (token) {
+        setGoogleAccessToken(token);
+        const userCredentials = {
+          userName: user.displayName,
+          userEmail: user.email,
+          credential_token: token,
+        };
+        localStorage.setItem("userCredentials", JSON.stringify({ userCredentials }));
+        setUserData(userCredentials);
+        toast.success("signed in successfully", { theme: "dark" });
+      } else {
+        toast.error("Could not retrieve Google access token.", { theme: "dark" });
+      }
+    } catch (error) {
+      toast.dismiss();
+      toast.error(error.message, { theme: "dark" });
+    }
   };
 
-  // google logout functionality
   const googleSignOut = async () => {
     toast.loading("signing you out...", { theme: "dark" });
-    await new Promise((resolve) => {
-      setTimeout(() => {
-        resolve();
-      }, 1500);
-    }).then(() => {
-      signOut(auth)
-        .then(() => {
-          setUserData(null);
-          toast.dismiss();
-          localStorage.clear();
-          toast.success("signed out", { theme: "dark" });
-        })
-        .catch((error) => {
-          toast.dismiss();
-          toast.error(error.message);
-        });
-    });
+    try {
+      await signOut(auth);
+      setUserData(null);
+      setGoogleAccessToken(null);
+      localStorage.clear();
+      toast.dismiss();
+      toast.success("signed out", { theme: "dark" });
+    } catch (error) {
+      toast.dismiss();
+      toast.error(error.message, { theme: "dark" });
+    }
   };
 
-  // handle user signup and signin
   const handleUserAuth = () => {
     userData ? googleSignOut() : googleSignin();
   };
 
-  // Function to add event to Google Calendar
-  const addEventToCalendar = async (eventData, accessToken) => {
+  const addEventToCalendar = async (eventData) => {
+    if (!googleAccessToken) {
+      toast.error("Please sign in with Google to add events.", { theme: "dark" });
+      return;
+    }
+
+    toast.loading("Adding event to Google Calendar...", { theme: "dark" });
     try {
       const event = {
         summary: eventData.topic,
         start: {
-          dateTime: new Date(
-            `${eventData.date}T${eventData.time}:00`
-          ).toISOString(),
+          dateTime: new Date(`${eventData.date}T${eventData.time}:00`).toISOString(),
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         },
         end: {
-          dateTime: new Date(
-            `${eventData.date}T${eventData.time}:30` // Assuming 30 min event duration
-          ).toISOString(),
+          dateTime: new Date(`${eventData.date}T${eventData.time}:30`).toISOString(),
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         },
       };
@@ -109,56 +93,49 @@ const App = () => {
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${googleAccessToken}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(event),
         }
       );
 
+      toast.dismiss();
       if (response.ok) {
         toast.success("Event added to Google Calendar!", { theme: "dark" });
       } else {
         const error = await response.json();
-        toast.error(`Failed to add event to calendar: ${error.message}`, {
-          theme: "dark",
-        });
+        toast.error(`Failed to add event: ${error.message}`, { theme: "dark" });
       }
     } catch (error) {
-      toast.error(`Error adding event to calendar: ${error.message}`, {
-        theme: "dark",
-      });
+      toast.dismiss();
+      toast.error(`Error adding event: ${error.message}`, { theme: "dark" });
     }
   };
 
-  //form submit functionality
   const handleEvent = async (data) => {
-    if (!userData?.credential_token) {
-      toast.error("Please sign in with Google to add events to your calendar.", {
+    if (!googleAccessToken) {
+      toast.error("Please sign in with Google to add events.", {
         theme: "dark",
       });
       return;
     }
 
-    toast.loading("submitting and adding to calendar...", { theme: "dark" });
-    await new Promise((resolve) => {
-      setTimeout(() => {
-        resolve();
-      }, 1500);
-    }).then(() => {
-      toast.dismiss();
-      console.log("Form Data:", data);
-      addEventToCalendar(data, userData.credential_token);
-    });
+    toast.loading("submitting event...", { theme: "dark" });
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    toast.dismiss();
+    addEventToCalendar(data);
   };
 
   useEffect(() => {
     if (userData) {
       setAuthBtnText("logout");
       setAuthBtnBg("bg-red-600");
+      setGoogleAccessToken(userData.credential_token);
     } else {
       setAuthBtnText("login");
       setAuthBtnBg("bg-blue-600");
+      setGoogleAccessToken(null);
     }
   }, [userData]);
 
@@ -180,12 +157,15 @@ const App = () => {
           <fieldset className="border border-zinc-500 py-1 px-2 rounded-md col-span-2">
             <legend className="text-zinc-200 px-1">Topic</legend>
             <input
-              {...register("topic")}
+              {...register("topic", { required: "Topic is required" })}
               type="text"
               placeholder="Let us know the agenda of meeting"
               className="text-zinc-300 w-full outline-none placeholder-zinc-400"
               required
             />
+            {errors.topic && (
+              <p className="text-red-500 text-xs italic">{errors.topic.message}</p>
+            )}
           </fieldset>
           <fieldset className="border border-zinc-500 py-1 px-2 rounded-md">
             <legend className="text-zinc-200 px-1">Date</legend>
@@ -212,18 +192,18 @@ const App = () => {
             )}
           </fieldset>
           <button
-            disabled={isSubmitting || !userData?.credential_token}
+            disabled={isSubmitting || !googleAccessToken}
             className={`col-span-2 py-2 rounded mt-2 ${
-              isSubmitting || !userData?.credential_token
+              isSubmitting || !googleAccessToken
                 ? "cursor-not-allowed bg-green-900"
                 : "cursor-pointer bg-green-600"
             }`}
           >
             {isSubmitting
               ? "submitting..."
-              : !userData?.credential_token
+              : !googleAccessToken
               ? "Please Login"
-              : "submit"}
+              : "Add to Calendar"}
           </button>
         </form>
       </section>
